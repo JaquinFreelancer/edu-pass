@@ -1,0 +1,148 @@
+graph TD
+    %% Comentarios:
+    %% - Arquitectura de 3 capas para plataforma de cursos online y membresías
+    %% - Incluye microservicios, seguridad, pagos, contenido multimedia y escalabilidad
+    %% - Separación de responsabilidades, alta disponibilidad y rendimiento
+    %% - Integración con servicios externos: Stripe, AWS S3, CDN, Email
+
+    %% === USUARIOS Y CLIENTES ===
+    Guest[Usuario Visitante]
+    Student[Estudiante]
+    Instructor[Instructor]
+    Admin[Administrador]
+
+    %% === CAPA DE PRESENTACIÓN ===
+    subgraph FRONTEND ["🖥️ Frontend Layer"]
+        WebApp[React/Vue SPA<br/>Responsive Design]
+        MobileApp[App Móvil<br/>React Native/Flutter]
+        AdminPanel[Panel Admin<br/>Dashboard]
+        InstructorPanel[Panel Instructor<br/>Gestión Cursos]
+    end
+
+    %% === CAPA DE PROXY Y BALANCEADOR ===
+    subgraph PROXY ["⚖️ Load Balancer & Proxy"]
+        LoadBalancer[Nginx/HAProxy<br/>Load Balancer]
+        CDN[CDN Global<br/>CloudFlare/AWS]
+        SSL[SSL/TLS Termination<br/>Certificados]
+    end
+
+    %% === CAPA DE API GATEWAY ===
+    subgraph GATEWAY ["🚪 API Gateway"]
+        APIGateway[API Gateway<br/>Rate Limiting, CORS]
+        Auth[JWT Authentication<br/>Middleware]
+        Validation[Request Validation<br/>Schema Validation]
+        Logging[Request Logging<br/>Audit Trail]
+    end
+
+    %% === CAPA DE SERVICIOS BACKEND ===
+    subgraph BACKEND ["🔧 Backend Services"]
+        AuthService[Authentication Service<br/>JWT, Sessions, Roles]
+        UserService[User Management<br/>Profiles, Permissions]
+        CourseService[Course Service<br/>CRUD, Content Management]
+        EnrollmentService[Enrollment Service<br/>Inscriptions, Progress]
+        PaymentService[Payment Service<br/>Stripe Integration]
+        NotificationService[Notification Service<br/>Email, Push, In-App]
+        MediaService[Media Service<br/>Upload, Processing, CDN]
+        AnalyticsService[Analytics Service<br/>Reports, Metrics]
+        CertificateService[Certificate Service<br/>Generation, Verification]
+    end
+
+    %% === CAPA DE BASE DE DATOS ===
+    subgraph DATABASE ["🗄️ Data Layer"]
+        MainDB[(PostgreSQL<br/>Main Database<br/>ACID, Transactions)]
+        CacheDB[(Redis<br/>Sessions, Cache)]
+        SearchDB[(Elasticsearch<br/>Full-text Search)]
+        AnalyticsDB[(ClickHouse<br/>Analytics, Metrics)]
+    end
+
+    %% === SERVICIOS EXTERNOS ===
+    subgraph EXTERNAL ["🌐 External Services"]
+        StripeAPI[Stripe API<br/>Payments, Subscriptions]
+        EmailProvider[SendGrid/SES<br/>Email Delivery]
+        FileStorage[AWS S3/MinIO<br/>File Storage]
+        VideoStreaming[AWS CloudFront<br/>Video Streaming]
+        Monitoring[DataDog/Grafana<br/>Monitoring, Alerts]
+    end
+
+    %% === SERVICIOS DE INFRAESTRUCTURA ===
+    subgraph INFRASTRUCTURE ["🏗️ Infrastructure"]
+        MessageQueue[RabbitMQ/Kafka<br/>Event Processing]
+        JobQueue[Bull/Sidekiq<br/>Background Jobs]
+        FileProcessor[FFmpeg<br/>Video Processing]
+        Backup[Automated Backup<br/>Database & Files]
+        Security[Security Scanner<br/>Vulnerability Detection]
+    end
+
+    %% === CONEXIONES PRINCIPALES ===
+    Guest --> FRONTEND
+    Student --> FRONTEND
+    Instructor --> FRONTEND
+    Admin --> FRONTEND
+
+    FRONTEND --> PROXY
+    PROXY --> GATEWAY
+    GATEWAY --> BACKEND
+
+    %% === CONEXIONES FRONTEND ===
+    WebApp --> LoadBalancer
+    MobileApp --> LoadBalancer
+    AdminPanel --> LoadBalancer
+    InstructorPanel --> LoadBalancer
+
+    %% === CONEXIONES PROXY ===
+    LoadBalancer --> APIGateway
+    CDN --> LoadBalancer
+    SSL --> LoadBalancer
+
+    %% === CONEXIONES GATEWAY ===
+    APIGateway --> Auth
+    Auth --> Validation
+    Validation --> Logging
+    Logging --> BACKEND
+
+    %% === CONEXIONES SERVICIOS ===
+    AuthService --> MainDB
+    AuthService --> CacheDB
+    UserService --> MainDB
+    UserService --> CacheDB
+    CourseService --> MainDB
+    CourseService --> SearchDB
+    EnrollmentService --> MainDB
+    EnrollmentService --> AnalyticsDB
+    PaymentService --> MainDB
+    PaymentService --> StripeAPI
+    NotificationService --> EmailProvider
+    NotificationService --> MessageQueue
+    MediaService --> FileStorage
+    MediaService --> VideoStreaming
+    AnalyticsService --> AnalyticsDB
+    CertificateService --> MainDB
+    CertificateService --> FileStorage
+
+    %% === CONEXIONES INFRAESTRUCTURA ===
+    BACKEND --> MessageQueue
+    BACKEND --> JobQueue
+    MediaService --> FileProcessor
+    INFRASTRUCTURE --> Backup
+    INFRASTRUCTURE --> Security
+    INFRASTRUCTURE --> Monitoring
+
+    %% === FLUJOS DE DATOS CRÍTICOS ===
+    PaymentService --> MessageQueue
+    MessageQueue --> EnrollmentService
+    MessageQueue --> NotificationService
+    JobQueue --> FileProcessor
+    JobQueue --> CertificateService
+
+    %% === ESTILOS Y GRUPOS ===
+    classDef frontend stroke:#2196f3,stroke-width:2px
+    classDef backend stroke:#4caf50,stroke-width:2px
+    classDef database stroke:#ff9800,stroke-width:2px
+    classDef external stroke:#9c27b0,stroke-width:2px
+    classDef infrastructure stroke:#607d8b,stroke-width:2px
+
+    class FRONTEND,WebApp,MobileApp,AdminPanel,InstructorPanel frontend
+    class BACKEND,AuthService,UserService,CourseService,EnrollmentService,PaymentService,NotificationService,MediaService,AnalyticsService,CertificateService backend
+    class DATABASE,MainDB,CacheDB,SearchDB,AnalyticsDB database
+    class EXTERNAL,StripeAPI,EmailProvider,FileStorage,VideoStreaming,Monitoring external
+    class INFRASTRUCTURE,MessageQueue,JobQueue,FileProcessor,Backup,Security infrastructure

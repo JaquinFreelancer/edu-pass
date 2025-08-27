@@ -1,0 +1,352 @@
+erDiagram
+    %% Comentarios:
+    %% - ERD normalizado (3NF) para plataforma de cursos y membresías online
+    %% - Considera roles, pagos, progreso, contenido multimedia y certificaciones
+    %% - Estructura escalable para academias, gimnasios y creadores de contenido
+    %% - Incluye auditoría, seguridad y trazabilidad completa
+
+    %% === ENTIDADES DE USUARIO Y AUTENTICACIÓN ===
+    USERS {
+        uuid id PK "UUID único del usuario"
+        varchar email UK "Email único para login"
+        varchar password_hash "Hash bcrypt de la contraseña"
+        varchar first_name "Nombre del usuario"
+        varchar last_name "Apellido del usuario"
+        varchar phone "Teléfono de contacto"
+        date birth_date "Fecha de nacimiento"
+        varchar avatar "URL foto de perfil"
+        enum role "ADMIN, INSTRUCTOR, STUDENT"
+        enum status "ACTIVE, INACTIVE, SUSPENDED, PENDING"
+        boolean email_verified "Email verificado"
+        varchar timezone "Zona horaria del usuario"
+        text bio "Biografía del usuario"
+        timestamp email_verified_at "Fecha verificación email"
+        timestamp last_login_at "Última fecha de login"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    USER_SESSIONS {
+        uuid id PK "UUID único de la sesión"
+        uuid user_id FK "Referencia al usuario"
+        varchar token_hash "Hash del token de sesión"
+        varchar ip_address "IP del cliente"
+        varchar user_agent "Navegador del cliente"
+        varchar device_type "Tipo de dispositivo"
+        timestamp expires_at "Fecha de expiración"
+        timestamp created_at "Fecha de creación"
+    }
+
+    PASSWORD_RESETS {
+        uuid id PK "UUID único del reset"
+        varchar email "Email para reset"
+        varchar token_hash "Hash del token de reset"
+        timestamp expires_at "Fecha de expiración"
+        timestamp created_at "Fecha de creación"
+    }
+
+    %% === ENTIDADES DE MEMBRESÍAS Y PLANES ===
+    MEMBERSHIP_PLANS {
+        uuid id PK "UUID único del plan"
+        varchar name UK "Nombre único del plan"
+        varchar slug UK "URL amigable única"
+        text description "Descripción del plan"
+        decimal price "Precio del plan"
+        varchar currency "Moneda del precio"
+        enum billing_cycle "MONTHLY, QUARTERLY, YEARLY, LIFETIME"
+        integer duration_days "Duración en días (null para lifetime)"
+        text features "Características JSON"
+        integer max_courses "Máximo cursos accesibles (null = ilimitado)"
+        integer max_downloads "Máximo descargas mensuales"
+        boolean is_active "Estado activo del plan"
+        boolean is_featured "Plan destacado"
+        integer sort_order "Orden de visualización"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    USER_MEMBERSHIPS {
+        uuid id PK "UUID único de la membresía"
+        uuid user_id FK "Usuario propietario"
+        uuid plan_id FK "Plan de membresía"
+        enum status "ACTIVE, EXPIRED, CANCELLED, PENDING"
+        decimal amount_paid "Monto pagado"
+        varchar currency "Moneda del pago"
+        varchar stripe_subscription_id "ID suscripción Stripe"
+        timestamp started_at "Fecha de inicio"
+        timestamp expires_at "Fecha de expiración"
+        timestamp cancelled_at "Fecha de cancelación"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    %% === ENTIDADES DE CATEGORÍAS Y CURSOS ===
+    COURSE_CATEGORIES {
+        uuid id PK "UUID único de la categoría"
+        varchar name UK "Nombre único de categoría"
+        varchar slug UK "URL amigable única"
+        text description "Descripción de la categoría"
+        varchar icon "Icono de la categoría"
+        varchar color "Color hexadecimal"
+        boolean is_active "Estado activo"
+        integer sort_order "Orden de visualización"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    COURSES {
+        uuid id PK "UUID único del curso"
+        varchar title "Título del curso"
+        varchar slug UK "URL amigable única"
+        text description "Descripción del curso"
+        text objectives "Objetivos del curso"
+        text prerequisites "Prerrequisitos"
+        varchar thumbnail "Imagen destacada del curso"
+        varchar trailer_video "Video promocional"
+        decimal price "Precio individual del curso"
+        varchar currency "Moneda del precio"
+        enum difficulty_level "BEGINNER, INTERMEDIATE, ADVANCED"
+        integer duration_hours "Duración estimada en horas"
+        enum status "DRAFT, PUBLISHED, ARCHIVED"
+        boolean is_free "Curso gratuito"
+        boolean is_featured "Curso destacado"
+        boolean allow_preview "Permitir vista previa"
+        uuid category_id FK "Categoría del curso"
+        uuid instructor_id FK "Instructor principal"
+        text meta_keywords "Keywords SEO"
+        text meta_description "Meta descripción SEO"
+        decimal rating_average "Promedio de calificaciones"
+        integer total_ratings "Total de calificaciones"
+        integer total_students "Total de estudiantes"
+        timestamp published_at "Fecha de publicación"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    COURSE_INSTRUCTORS {
+        uuid id PK "UUID único de la relación"
+        uuid course_id FK "Curso relacionado"
+        uuid instructor_id FK "Instructor asignado"
+        enum role "MAIN, ASSISTANT, GUEST"
+        timestamp created_at "Fecha de asignación"
+    }
+
+    PLAN_COURSES {
+        uuid id PK "UUID único de la relación"
+        uuid plan_id FK "Plan de membresía"
+        uuid course_id FK "Curso incluido"
+        timestamp created_at "Fecha de inclusión"
+    }
+
+    %% === ENTIDADES DE LECCIONES Y CONTENIDO ===
+    COURSE_MODULES {
+        uuid id PK "UUID único del módulo"
+        uuid course_id FK "Curso propietario"
+        varchar title "Título del módulo"
+        text description "Descripción del módulo"
+        integer sort_order "Orden dentro del curso"
+        boolean is_active "Estado activo"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    LESSONS {
+        uuid id PK "UUID única de la lección"
+        uuid module_id FK "Módulo propietario"
+        varchar title "Título de la lección"
+        text description "Descripción de la lección"
+        enum content_type "VIDEO, TEXT, PDF, QUIZ, LIVE_SESSION"
+        text content "Contenido HTML/texto"
+        varchar video_url "URL del video"
+        varchar video_duration "Duración del video (HH:MM:SS)"
+        text attachments "Archivos adjuntos JSON"
+        boolean is_preview "Lección de vista previa"
+        boolean is_mandatory "Lección obligatoria"
+        integer sort_order "Orden dentro del módulo"
+        boolean is_active "Estado activo"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    LESSON_RESOURCES {
+        uuid id PK "UUID único del recurso"
+        uuid lesson_id FK "Lección propietaria"
+        varchar title "Título del recurso"
+        varchar file_path "Ruta del archivo"
+        varchar file_type "Tipo de archivo"
+        integer file_size "Tamaño en bytes"
+        boolean is_downloadable "Permitir descarga"
+        integer download_count "Contador de descargas"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    %% === ENTIDADES DE PROGRESO Y SEGUIMIENTO ===
+    COURSE_ENROLLMENTS {
+        uuid id PK "UUID única de la inscripción"
+        uuid user_id FK "Usuario inscrito"
+        uuid course_id FK "Curso inscrito"
+        enum enrollment_type "PURCHASE, MEMBERSHIP, FREE, GIFT"
+        decimal amount_paid "Monto pagado por el curso"
+        varchar currency "Moneda del pago"
+        varchar stripe_payment_id "ID pago Stripe"
+        enum status "ACTIVE, COMPLETED, CANCELLED, EXPIRED"
+        integer progress_percentage "Porcentaje de progreso"
+        timestamp enrolled_at "Fecha de inscripción"
+        timestamp completed_at "Fecha de finalización"
+        timestamp expires_at "Fecha de expiración"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    LESSON_PROGRESS {
+        uuid id PK "UUID único del progreso"
+        uuid enrollment_id FK "Inscripción relacionada"
+        uuid lesson_id FK "Lección relacionada"
+        enum status "NOT_STARTED, IN_PROGRESS, COMPLETED"
+        integer watch_time_seconds "Tiempo visto en segundos"
+        integer total_time_seconds "Tiempo total de la lección"
+        decimal completion_percentage "Porcentaje de completado"
+        timestamp started_at "Fecha de inicio"
+        timestamp completed_at "Fecha de finalización"
+        timestamp last_accessed_at "Último acceso"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    %% === ENTIDADES DE EVALUACIONES Y CERTIFICADOS ===
+    QUIZZES {
+        uuid id PK "UUID único del quiz"
+        uuid lesson_id FK "Lección relacionada"
+        varchar title "Título del quiz"
+        text description "Descripción del quiz"
+        integer passing_score "Puntuación mínima para aprobar"
+        integer time_limit_minutes "Tiempo límite en minutos"
+        integer max_attempts "Máximo intentos permitidos"
+        boolean is_active "Estado activo"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    QUIZ_QUESTIONS {
+        uuid id PK "UUID única de la pregunta"
+        uuid quiz_id FK "Quiz propietario"
+        text question "Texto de la pregunta"
+        enum question_type "MULTIPLE_CHOICE, TRUE_FALSE, FILL_BLANK"
+        text options "Opciones de respuesta JSON"
+        text correct_answer "Respuesta correcta"
+        integer points "Puntos de la pregunta"
+        integer sort_order "Orden de la pregunta"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    QUIZ_ATTEMPTS {
+        uuid id PK "UUID único del intento"
+        uuid enrollment_id FK "Inscripción relacionada"
+        uuid quiz_id FK "Quiz intentado"
+        text answers "Respuestas del usuario JSON"
+        integer score "Puntuación obtenida"
+        integer max_score "Puntuación máxima"
+        boolean passed "Aprobó el quiz"
+        timestamp started_at "Fecha de inicio"
+        timestamp completed_at "Fecha de finalización"
+        timestamp created_at "Fecha de creación"
+    }
+
+    CERTIFICATES {
+        uuid id PK "UUID único del certificado"
+        uuid enrollment_id FK "Inscripción relacionada"
+        varchar certificate_number UK "Número único del certificado"
+        varchar template_path "Ruta de la plantilla"
+        varchar file_path "Ruta del archivo generado"
+        text verification_data "Datos de verificación JSON"
+        timestamp issued_at "Fecha de emisión"
+        timestamp created_at "Fecha de creación"
+    }
+
+    %% === ENTIDADES DE PAGOS Y TRANSACCIONES ===
+    PAYMENTS {
+        uuid id PK "UUID único del pago"
+        uuid user_id FK "Usuario que paga"
+        enum payment_type "COURSE, MEMBERSHIP, SUBSCRIPTION"
+        uuid reference_id "ID del curso o plan"
+        decimal amount "Monto del pago"
+        varchar currency "Moneda del pago"
+        enum status "PENDING, COMPLETED, FAILED, REFUNDED"
+        varchar stripe_payment_intent_id "ID de intención de pago Stripe"
+        varchar stripe_charge_id "ID del cargo Stripe"
+        varchar payment_method "Método de pago"
+        text metadata "Metadatos adicionales JSON"
+        timestamp processed_at "Fecha de procesamiento"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    %% === ENTIDADES DE COMUNICACIÓN ===
+    COURSE_REVIEWS {
+        uuid id PK "UUID única de la reseña"
+        uuid course_id FK "Curso reseñado"
+        uuid user_id FK "Usuario que reseña"
+        integer rating "Calificación 1-5"
+        text comment "Comentario de la reseña"
+        enum status "PENDING, APPROVED, REJECTED"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    NOTIFICATIONS {
+        uuid id PK "UUID única de la notificación"
+        uuid user_id FK "Usuario destinatario"
+        varchar title "Título de la notificación"
+        text message "Mensaje de la notificación"
+        enum type "INFO, SUCCESS, WARNING, ERROR"
+        varchar action_url "URL de acción"
+        boolean is_read "Notificación leída"
+        timestamp read_at "Fecha de lectura"
+        timestamp created_at "Fecha de creación"
+    }
+
+    %% === ENTIDADES DE CONFIGURACIÓN ===
+    SITE_SETTINGS {
+        uuid id PK "UUID único de la configuración"
+        varchar key UK "Clave única de configuración"
+        varchar value "Valor de la configuración"
+        varchar type "Tipo de dato"
+        varchar category "Categoría de configuración"
+        text description "Descripción"
+        boolean is_public "Visible en frontend"
+        timestamp created_at "Fecha de creación"
+        timestamp updated_at "Fecha última actualización"
+    }
+
+    %% === RELACIONES ===
+    USERS ||--o{ USER_SESSIONS : "tiene"
+    USERS ||--o{ USER_MEMBERSHIPS : "posee"
+    USERS ||--o{ COURSES : "instruye"
+    USERS ||--o{ COURSE_ENROLLMENTS : "se_inscribe"
+    USERS ||--o{ COURSE_REVIEWS : "escribe"
+    USERS ||--o{ PAYMENTS : "realiza"
+    USERS ||--o{ NOTIFICATIONS : "recibe"
+
+    MEMBERSHIP_PLANS ||--o{ USER_MEMBERSHIPS : "genera"
+    MEMBERSHIP_PLANS ||--o{ PLAN_COURSES : "incluye"
+
+    COURSE_CATEGORIES ||--o{ COURSES : "contiene"
+    COURSES ||--o{ COURSE_INSTRUCTORS : "tiene"
+    COURSES ||--o{ COURSE_MODULES : "contiene"
+    COURSES ||--o{ PLAN_COURSES : "incluido_en"
+    COURSES ||--o{ COURSE_ENROLLMENTS : "recibe"
+    COURSES ||--o{ COURSE_REVIEWS : "recibe"
+
+    COURSE_MODULES ||--o{ LESSONS : "contiene"
+    LESSONS ||--o{ LESSON_RESOURCES : "tiene"
+    LESSONS ||--o{ LESSON_PROGRESS : "trackea"
+    LESSONS ||--o{ QUIZZES : "contiene"
+
+    COURSE_ENROLLMENTS ||--o{ LESSON_PROGRESS : "genera"
+    COURSE_ENROLLMENTS ||--o{ QUIZ_ATTEMPTS : "permite"
+    COURSE_ENROLLMENTS ||--o{ CERTIFICATES : "genera"
+
+    QUIZZES ||--o{ QUIZ_QUESTIONS : "contiene"
+    QUIZZES ||--o{ QUIZ_ATTEMPTS : "recibe"

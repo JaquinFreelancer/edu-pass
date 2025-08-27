@@ -1,0 +1,442 @@
+classDiagram
+    %% Comentarios:
+    %% - Diagrama de clases para plataforma de cursos online y membresías
+    %% - Coherente con el ERD, incluye herencia, composición y agregación
+    %% - Patrones de diseño: Strategy (pagos), Observer (notificaciones), Factory (certificados)
+    %% - Separación de responsabilidades y principios SOLID
+
+    %% === CLASES BASE Y ABSTRACTAS ===
+    class Entity {
+        <<abstract>>
+        +UUID id
+        +DateTime createdAt
+        +DateTime updatedAt
+        +save()
+        +delete()
+        +validate()
+    }
+
+    class User {
+        +String email
+        +String passwordHash
+        +String firstName
+        +String lastName
+        +String phone
+        +Date birthDate
+        +String avatar
+        +UserRole role
+        +UserStatus status
+        +Boolean emailVerified
+        +String timezone
+        +String bio
+        +DateTime emailVerifiedAt
+        +DateTime lastLoginAt
+        +login(credentials)
+        +logout()
+        +changePassword(newPassword)
+        +updateProfile(data)
+        +verifyEmail()
+        +resetPassword()
+    }
+
+    class UserSession {
+        +UUID userId
+        +String tokenHash
+        +String ipAddress
+        +String userAgent
+        +String deviceType
+        +DateTime expiresAt
+        +isValid()
+        +extend()
+        +invalidate()
+    }
+
+    %% === ENUMS Y TIPOS ===
+    class UserRole {
+        <<enumeration>>
+        ADMIN
+        INSTRUCTOR
+        STUDENT
+    }
+
+    class UserStatus {
+        <<enumeration>>
+        ACTIVE
+        INACTIVE
+        SUSPENDED
+        PENDING
+    }
+
+    class BillingCycle {
+        <<enumeration>>
+        MONTHLY
+        QUARTERLY
+        YEARLY
+        LIFETIME
+    }
+
+    %% === CLASES DE MEMBRESÍAS ===
+    class MembershipPlan {
+        +String name
+        +String slug
+        +String description
+        +Decimal price
+        +String currency
+        +BillingCycle billingCycle
+        +Integer durationDays
+        +JSON features
+        +Integer maxCourses
+        +Integer maxDownloads
+        +Boolean isActive
+        +Boolean isFeatured
+        +Integer sortOrder
+        +calculatePrice(cycle)
+        +isAccessibleCourse(course)
+        +getFeatures()
+    }
+
+    class UserMembership {
+        +UUID userId
+        +UUID planId
+        +MembershipStatus status
+        +Decimal amountPaid
+        +String currency
+        +String stripeSubscriptionId
+        +DateTime startedAt
+        +DateTime expiresAt
+        +DateTime cancelledAt
+        +isActive()
+        +isExpired()
+        +cancel()
+        +renew()
+        +extend(days)
+    }
+
+    %% === CLASES DE CURSOS ===
+    class CourseCategory {
+        +String name
+        +String slug
+        +String description
+        +String icon
+        +String color
+        +Boolean isActive
+        +Integer sortOrder
+        +getCourses()
+        +activate()
+        +deactivate()
+    }
+
+    class Course {
+        +String title
+        +String slug
+        +String description
+        +String objectives
+        +String prerequisites
+        +String thumbnail
+        +String trailerVideo
+        +Decimal price
+        +String currency
+        +DifficultyLevel difficultyLevel
+        +Integer durationHours
+        +CourseStatus status
+        +Boolean isFree
+        +Boolean isFeatured
+        +Boolean allowPreview
+        +UUID categoryId
+        +UUID instructorId
+        +String metaKeywords
+        +String metaDescription
+        +Decimal ratingAverage
+        +Integer totalRatings
+        +Integer totalStudents
+        +DateTime publishedAt
+        +publish()
+        +archive()
+        +addModule(module)
+        +removeModule(module)
+        +calculateProgress(user)
+        +isAccessibleBy(user)
+        +addInstructor(instructor, role)
+        +updateRating()
+    }
+
+    class CourseModule {
+        +UUID courseId
+        +String title
+        +String description
+        +Integer sortOrder
+        +Boolean isActive
+        +addLesson(lesson)
+        +removeLesson(lesson)
+        +reorderLessons()
+        +getLessons()
+    }
+
+    class Lesson {
+        +UUID moduleId
+        +String title
+        +String description
+        +ContentType contentType
+        +String content
+        +String videoUrl
+        +String videoDuration
+        +JSON attachments
+        +Boolean isPreview
+        +Boolean isMandatory
+        +Integer sortOrder
+        +Boolean isActive
+        +addResource(resource)
+        +removeResource(resource)
+        +isAccessibleBy(user)
+        +markAsCompleted(user)
+    }
+
+    class LessonResource {
+        +UUID lessonId
+        +String title
+        +String filePath
+        +String fileType
+        +Integer fileSize
+        +Boolean isDownloadable
+        +Integer downloadCount
+        +download(user)
+        +incrementDownloadCount()
+    }
+
+    %% === CLASES DE PROGRESO ===
+    class CourseEnrollment {
+        +UUID userId
+        +UUID courseId
+        +EnrollmentType enrollmentType
+        +Decimal amountPaid
+        +String currency
+        +String stripePaymentId
+        +EnrollmentStatus status
+        +Integer progressPercentage
+        +DateTime enrolledAt
+        +DateTime completedAt
+        +DateTime expiresAt
+        +calculateProgress()
+        +markAsCompleted()
+        +isExpired()
+        +cancel()
+        +generateCertificate()
+    }
+
+    class LessonProgress {
+        +UUID enrollmentId
+        +UUID lessonId
+        +ProgressStatus status
+        +Integer watchTimeSeconds
+        +Integer totalTimeSeconds
+        +Decimal completionPercentage
+        +DateTime startedAt
+        +DateTime completedAt
+        +DateTime lastAccessedAt
+        +updateProgress(watchTime)
+        +markAsCompleted()
+        +isCompleted()
+    }
+
+    %% === CLASES DE EVALUACIONES ===
+    class Quiz {
+        +UUID lessonId
+        +String title
+        +String description
+        +Integer passingScore
+        +Integer timeLimitMinutes
+        +Integer maxAttempts
+        +Boolean isActive
+        +addQuestion(question)
+        +removeQuestion(question)
+        +calculateScore(answers)
+        +canAttempt(user)
+    }
+
+    class QuizQuestion {
+        +UUID quizId
+        +String question
+        +QuestionType questionType
+        +JSON options
+        +String correctAnswer
+        +Integer points
+        +Integer sortOrder
+        +isCorrect(answer)
+        +getOptions()
+    }
+
+    class QuizAttempt {
+        +UUID enrollmentId
+        +UUID quizId
+        +JSON answers
+        +Integer score
+        +Integer maxScore
+        +Boolean passed
+        +DateTime startedAt
+        +DateTime completedAt
+        +calculateScore()
+        +submit()
+        +isPassed()
+    }
+
+    %% === CLASES DE CERTIFICADOS ===
+    class Certificate {
+        +UUID enrollmentId
+        +String certificateNumber
+        +String templatePath
+        +String filePath
+        +JSON verificationData
+        +DateTime issuedAt
+        +generate()
+        +verify()
+        +download()
+        +isValid()
+    }
+
+    class CertificateGenerator {
+        <<service>>
+        +generateCertificate(enrollment)
+        +createTemplate(course)
+        +validateCertificate(number)
+    }
+
+    %% === CLASES DE PAGOS ===
+    class PaymentProcessor {
+        <<abstract>>
+        +processPayment(paymentData)
+        +refundPayment(paymentId)
+        +validatePayment(paymentId)
+    }
+
+    class StripePaymentProcessor {
+        +String apiKey
+        +processPayment(paymentData)
+        +refundPayment(paymentId)
+        +validatePayment(paymentId)
+        +createSubscription(planData)
+        +cancelSubscription(subscriptionId)
+    }
+
+    class Payment {
+        +UUID userId
+        +PaymentType paymentType
+        +UUID referenceId
+        +Decimal amount
+        +String currency
+        +PaymentStatus status
+        +String stripePaymentIntentId
+        +String stripeChargeId
+        +String paymentMethod
+        +JSON metadata
+        +DateTime processedAt
+        +process()
+        +refund()
+        +markAsCompleted()
+        +markAsFailed()
+    }
+
+    %% === CLASES DE COMUNICACIÓN ===
+    class CourseReview {
+        +UUID courseId
+        +UUID userId
+        +Integer rating
+        +String comment
+        +ReviewStatus status
+        +approve()
+        +reject()
+        +isApproved()
+    }
+
+    class Notification {
+        +UUID userId
+        +String title
+        +String message
+        +NotificationType type
+        +String actionUrl
+        +Boolean isRead
+        +DateTime readAt
+        +markAsRead()
+        +send()
+    }
+
+    class NotificationService {
+        <<service>>
+        +sendNotification(userId, notification)
+        +sendBulkNotification(userIds, notification)
+        +createNotification(data)
+    }
+
+    %% === CLASES DE SERVICIOS ===
+    class CourseService {
+        <<service>>
+        +createCourse(courseData)
+        +updateCourse(courseId, data)
+        +deleteCourse(courseId)
+        +enrollUser(userId, courseId)
+        +calculateProgress(userId, courseId)
+        +generateCertificate(enrollmentId)
+    }
+
+    class UserService {
+        <<service>>
+        +registerUser(userData)
+        +authenticateUser(credentials)
+        +updateUserProfile(userId, data)
+        +assignMembership(userId, planId)
+        +getUserProgress(userId)
+    }
+
+    class PaymentService {
+        <<service>>
+        +processPayment(paymentData)
+        +createSubscription(userId, planId)
+        +cancelSubscription(subscriptionId)
+        +handleWebhook(webhookData)
+    }
+
+    %% === RELACIONES ===
+    Entity <|-- User
+    Entity <|-- Course
+    Entity <|-- CourseModule
+    Entity <|-- Lesson
+    Entity <|-- Quiz
+    Entity <|-- Payment
+
+    User "1" --> "0..*" UserSession : tiene
+    User "1" --> "0..*" UserMembership : posee
+    User "1" --> "0..*" CourseEnrollment : se_inscribe
+    User "1" --> "0..*" CourseReview : escribe
+    User "1" --> "0..*" Notification : recibe
+
+    User --> UserRole : tiene_rol
+    User --> UserStatus : tiene_estado
+
+    MembershipPlan "1" --> "0..*" UserMembership : genera
+    MembershipPlan --> BillingCycle : tiene_ciclo
+
+    CourseCategory "1" --> "0..*" Course : contiene
+    Course "1" --> "0..*" CourseModule : tiene
+    Course "1" --> "0..*" CourseEnrollment : recibe
+    Course "1" --> "0..*" CourseReview : recibe
+
+    CourseModule "1" --> "0..*" Lesson : contiene
+    Lesson "1" --> "0..*" LessonResource : tiene
+    Lesson "1" --> "0..1" Quiz : puede_tener
+
+    CourseEnrollment "1" --> "0..*" LessonProgress : genera
+    CourseEnrollment "1" --> "0..1" Certificate : genera
+    CourseEnrollment "1" --> "0..*" QuizAttempt : permite
+
+    Quiz "1" --> "1..*" QuizQuestion : contiene
+    Quiz "1" --> "0..*" QuizAttempt : recibe
+
+    PaymentProcessor <|-- StripePaymentProcessor
+    Payment --> PaymentProcessor : procesa_con
+
+    CourseService --> Course : gestiona
+    UserService --> User : gestiona
+    PaymentService --> Payment : gestiona
+    PaymentService --> PaymentProcessor : usa
+
+    NotificationService --> Notification : gestiona
+    CertificateGenerator --> Certificate : genera

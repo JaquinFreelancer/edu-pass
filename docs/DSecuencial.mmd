@@ -1,0 +1,300 @@
+sequenceDiagram
+    %% Comentarios:
+    %% - Diagramas de secuencia principales para plataforma de cursos online y membresías
+    %% - Incluye flujos críticos: autenticación, pagos, inscripciones, progreso y certificación
+    %% - Muestra interacciones entre Frontend, API Gateway, servicios backend y externos
+    %% - Considera validaciones, seguridad, Stripe y procesamiento asíncrono
+
+    participant U as Usuario
+    participant F as Frontend
+    participant G as API Gateway
+    participant A as Auth Service
+    participant P as Payment Service
+    participant C as Course Service
+    participant E as Enrollment Service
+    participant N as Notification Service
+    participant S as Stripe API
+    participant DB as Database
+    participant Q as Message Queue
+
+    %% === DIAGRAMA 1: REGISTRO Y AUTENTICACIÓN ===
+    Note over U,Q: 🔐 Flujo de Registro y Autenticación
+
+    U->>F: 1. Accede a /registro
+    F->>U: 2. Muestra formulario de registro
+    U->>F: 3. Completa datos (email, password, nombre)
+    F->>G: 4. POST /api/auth/register
+    G->>A: 5. Valida y crea usuario
+    A->>DB: 6. Inserta nuevo usuario (role: STUDENT)
+    DB->>A: 7. Usuario creado exitosamente
+    A->>N: 8. Envía evento de verificación email
+    N->>Q: 9. Cola email de verificación
+    Q->>N: 10. Procesa envío de email
+    A->>G: 11. Respuesta de registro exitoso
+    G->>F: 12. Usuario registrado
+    F->>U: 13. Mensaje "Revisa tu email para verificar"
+
+    Note over U,Q: Usuario recibe email y verifica cuenta
+
+    U->>F: 14. Click en enlace de verificación
+    F->>G: 15. GET /api/auth/verify-email?token=xyz
+    G->>A: 16. Valida token de verificación
+    A->>DB: 17. Actualiza email_verified = true
+    DB->>A: 18. Email verificado
+    A->>G: 19. Verificación exitosa
+    G->>F: 20. Email verificado
+    F->>U: 21. Redirige a /login con mensaje de éxito
+
+    %% === DIAGRAMA 2: LOGIN Y OBTENCIÓN DE TOKEN JWT ===
+    Note over U,Q: 🎫 Flujo de Login
+
+    U->>F: 1. Envía credenciales de login
+    F->>G: 2. POST /api/auth/login
+    G->>A: 3. Valida credenciales
+    A->>DB: 4. Consulta usuario por email
+    DB->>A: 5. Datos del usuario
+    A->>A: 6. Verifica password con bcrypt
+    
+    alt Credenciales válidas
+        A->>A: 7. Genera JWT access + refresh token
+        A->>DB: 8. Crea sesión de usuario
+        DB->>A: 9. Sesión creada
+        A->>G: 10. Tokens JWT + datos usuario
+        G->>F: 11. Login exitoso
+        F->>F: 12. Almacena tokens en localStorage
+        F->>U: 13. Redirige a /dashboard
+    else Credenciales inválidas
+        A->>G: 7. Error 401 Unauthorized
+        G->>F: 8. Credenciales incorrectas
+        F->>U: 9. Mensaje de error
+    end
+
+    %% === DIAGRAMA 3: SUSCRIPCIÓN A PLAN DE MEMBRESÍA ===
+    Note over U,Q: 💳 Flujo de Suscripción a Membresía
+
+    U->>F: 1. Selecciona plan de membresía
+    F->>G: 2. GET /api/membership-plans/:id
+    G->>C: 3. Obtiene detalles del plan
+    C->>DB: 4. Consulta plan de membresía
+    DB->>C: 5. Datos del plan
+    C->>G: 6. Plan encontrado
+    G->>F: 7. Detalles del plan
+    F->>U: 8. Muestra resumen y botón "Suscribirse"
+
+    U->>F: 9. Confirma suscripción
+    F->>G: 10. POST /api/memberships/subscribe
+    G->>P: 11. Inicia proceso de suscripción
+    P->>S: 12. Crea customer en Stripe
+    S->>P: 13. Customer ID creado
+    P->>S: 14. Crea subscription en Stripe
+    S->>P: 15. Subscription + Payment Intent
+    P->>G: 16. Client secret para pago
+    G->>F: 17. Datos para Stripe checkout
+    F->>U: 18. Redirige a Stripe Checkout
+
+    U->>S: 19. Completa pago en Stripe
+    S->>P: 20. Webhook: subscription created
+    P->>P: 21. Valida webhook signature
+    P->>DB: 22. Crea user_membership
+    DB->>P: 23. Membresía activada
+    P->>N: 24. Envía notificación de bienvenida
+    N->>Q: 25. Cola notificación
+    P->>S: 26. Confirma procesamiento webhook
+    S->>F: 27. Redirige a success page
+    F->>U: 28. Mensaje "Suscripción activada"
+
+    %% === DIAGRAMA 4: INSCRIPCIÓN A CURSO ===
+    Note over U,Q: 📚 Flujo de Inscripción a Curso
+
+    U->>F: 1. Accede a curso específico
+    F->>G: 2. GET /api/courses/:slug
+    G->>C: 3. Obtiene datos del curso
+    C->>DB: 4. Consulta curso y verificar acceso
+    DB->>C: 5. Datos del curso
+    C->>E: 6. Verifica si usuario tiene acceso
+    E->>DB: 7. Consulta membresía/inscripciones
+    DB->>E: 8. Estado de acceso del usuario
+    
+    alt Usuario tiene acceso por membresía
+        E->>C: 9. Acceso por membresía activa
+        C->>G: 10. Curso accesible
+        G->>F: 11. Mostrar botón "Continuar curso"
+        F->>U: 12. Acceso directo al contenido
+    else Usuario debe comprar curso
+        E->>C: 9. Acceso denegado - requiere compra
+        C->>G: 10. Mostrar opción de compra
+        G->>F: 11. Botón "Comprar curso"
+        F->>U: 12. Opción de compra mostrada
+        
+        U->>F: 13. Inicia compra de curso
+        F->>G: 14. POST /api/courses/:id/purchase
+        G->>P: 15. Procesa pago de curso
+        P->>S: 16. Crea Payment Intent
+        S->>P: 17. Client secret
+        P->>G: 18. Datos para pago
+        G->>F: 19. Checkout de curso
+        F->>U: 20. Formulario de pago
+
+        U->>S: 21. Completa pago
+        S->>P: 22. Webhook: payment succeeded
+        P->>E: 23. Crear inscripción al curso
+        E->>DB: 24. Inserta course_enrollment
+        DB->>E: 25. Inscripción creada
+        E->>N: 26. Notificación de inscripción
+        N->>Q: 27. Cola notificación
+        P->>F: 28. Pago exitoso
+        F->>U: 29. "¡Curso desbloqueado! Comenzar ahora"
+    end
+
+    %% === DIAGRAMA 5: SEGUIMIENTO DE PROGRESO EN LECCIÓN ===
+    Note over U,Q: 📈 Flujo de Progreso en Lección
+
+    U->>F: 1. Accede a lección del curso
+    F->>G: 2. GET /api/lessons/:id
+    G->>C: 3. Obtiene contenido de lección
+    C->>E: 4. Verifica acceso y progreso previo
+    E->>DB: 5. Consulta lesson_progress
+    DB->>E: 6. Progreso actual del usuario
+    E->>C: 7. Usuario tiene acceso
+    C->>DB: 8. Obtiene contenido de lección
+    DB->>C: 9. Contenido y recursos
+    C->>G: 10. Lección disponible
+    G->>F: 11. Contenido de lección
+    F->>U: 12. Muestra video/contenido
+
+    U->>F: 13. Reproduce video/lee contenido
+    F->>F: 14. Trackea tiempo de visualización
+    F->>G: 15. PUT /api/lessons/:id/progress (cada 30 seg)
+    G->>E: 16. Actualiza progreso
+    E->>DB: 17. UPDATE lesson_progress
+    DB->>E: 18. Progreso actualizado
+    E->>E: 19. Calcula % completado de lección
+    
+    alt Lección completada (>90% vista)
+        E->>DB: 20. Marca lección como COMPLETED
+        DB->>E: 21. Lección completada
+        E->>E: 22. Recalcula progreso del curso
+        E->>DB: 23. Actualiza course_enrollment progress
+        DB->>E: 24. Progreso del curso actualizado
+        E->>G: 25. Lección completada
+        G->>F: 26. Notificación de completado
+        F->>U: 27. "¡Lección completada! ✅"
+        
+        alt Curso completado (100%)
+            E->>N: 28. Genera certificado
+            N->>Q: 29. Cola generación certificado
+            Q->>E: 30. Proceso certificado
+            E->>DB: 31. Inserta certificate
+            DB->>E: 32. Certificado generado
+            E->>N: 33. Notifica certificado disponible
+            N->>Q: 34. Cola notificación
+        end
+    else Progreso parcial
+        E->>G: 20. Progreso actualizado
+        G->>F: 21. Confirmación
+        F->>U: 22. Barra de progreso actualizada
+    end
+
+    %% === DIAGRAMA 6: REALIZACIÓN DE QUIZ ===
+    Note over U,Q: 🧠 Flujo de Quiz y Evaluación
+
+    U->>F: 1. Accede a quiz de lección
+    F->>G: 2. GET /api/quizzes/:id
+    G->>C: 3. Obtiene quiz y preguntas
+    C->>DB: 4. Consulta quiz y quiz_questions
+    DB->>C: 5. Datos del quiz
+    C->>E: 6. Verifica intentos previos
+    E->>DB: 7. Consulta quiz_attempts
+    DB->>E: 8. Historial de intentos
+    
+    alt Puede realizar quiz
+        E->>C: 9. Intento permitido
+        C->>G: 10. Quiz disponible
+        G->>F: 11. Preguntas del quiz
+        F->>U: 12. Formulario de quiz con timer
+
+        U->>F: 13. Responde preguntas
+        F->>G: 14. POST /api/quizzes/:id/submit
+        G->>C: 15. Evalúa respuestas
+        C->>C: 16. Calcula puntuación
+        C->>E: 17. Registra intento
+        E->>DB: 18. Inserta quiz_attempt
+        DB->>E: 19. Intento registrado
+        
+        alt Quiz aprobado
+            E->>E: 20. Marca quiz como passed
+            E->>G: 21. Quiz aprobado
+            G->>F: 22. Resultados exitosos
+            F->>U: 23. "¡Quiz aprobado! 🎉 Puntuación: X/Y"
+        else Quiz reprobado
+            E->>G: 20. Quiz reprobado
+            G->>F: 21. Resultados fallidos
+            F->>U: 22. "Quiz reprobado. Puedes reintentar."
+        end
+    else Máximo intentos alcanzado
+        E->>G: 9. Intentos agotados
+        G->>F: 10. Error 403
+        F->>U: 11. "Máximo de intentos alcanzado"
+    end
+
+    %% === DIAGRAMA 7: CREACIÓN DE CURSO (INSTRUCTOR) ===
+    Note over U,Q: 👨‍🏫 Flujo de Creación de Curso (Instructor)
+
+    participant I as Instructor
+
+    I->>F: 1. Accede a "Crear nuevo curso"
+    F->>G: 2. GET /api/instructor/courses/create
+    G->>A: 3. Verifica permisos de instructor
+    A->>DB: 4. Valida rol INSTRUCTOR/ADMIN
+    DB->>A: 5. Usuario autorizado
+    A->>G: 6. Acceso permitido
+    G->>F: 7. Formulario de creación
+    F->>I: 8. Muestra formulario
+
+    I->>F: 9. Completa datos del curso
+    F->>G: 10. POST /api/instructor/courses
+    G->>C: 11. Crea curso en estado DRAFT
+    C->>DB: 12. Inserta nuevo curso
+    DB->>C: 13. Curso creado (ID generado)
+    C->>G: 14. Curso creado exitosamente
+    G->>F: 15. Redirección a edición
+    F->>I: 16. "Curso creado. Añade contenido"
+
+    I->>F: 17. Añade módulos y lecciones
+    F->>G: 18. POST /api/instructor/modules
+    G->>C: 19. Crea módulos del curso
+    C->>DB: 20. Inserta course_modules
+    DB->>C: 21. Módulos creados
+    C->>G: 22. Módulos añadidos
+    G->>F: 23. Confirmación
+    F->>I: 24. "Módulos añadidos exitosamente"
+
+    I->>F: 25. Sube contenido multimedia
+    F->>G: 26. POST /api/media/upload
+    G->>C: 27. Procesa archivos multimedia
+    C->>Q: 28. Cola procesamiento video
+    Q->>C: 29. Video procesado y optimizado
+    C->>DB: 30. Guarda referencias de archivos
+    DB->>C: 31. Archivos guardados
+    C->>G: 32. Upload completado
+    G->>F: 33. Archivos disponibles
+    F->>I: 34. "Contenido subido exitosamente"
+
+    I->>F: 35. Publica curso
+    F->>G: 36. PUT /api/instructor/courses/:id/publish
+    G->>C: 37. Valida completitud del curso
+    C->>C: 38. Verifica contenido mínimo
+    
+    alt Curso completo y válido
+        C->>DB: 39. UPDATE status = 'PUBLISHED'
+        DB->>C: 40. Curso publicado
+        C->>N: 41. Notifica curso publicado
+        N->>Q: 42. Cola notificación
+        C->>G: 43. Curso publicado exitosamente
+        G->>F: 44. Confirmación
+        F->>I: 45. "¡Curso publicado! Ya es visible"
+    else Curso incompleto
+        C->>G: 39. Error de validación
+        G->>F: 40. Lista de errores
+        F->>I: 41. "Completa: X lecciones, Y videos"
+    end
